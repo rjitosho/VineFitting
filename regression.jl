@@ -25,7 +25,6 @@ use angles from all joints to fit model for each joint
 feature map (theta_all thetadot_all)
 """
 function compute_params(A, y, W, PSD = false)
-    compute_params(X_c, Xd_c, U_c)
 
 
     # solve optimization

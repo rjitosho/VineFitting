@@ -1,6 +1,5 @@
 include("../src/regression.jl")
 
-
 links, timesteps = size(X_c)
 links,N = size(U_c)
 
