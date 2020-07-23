@@ -1,5 +1,5 @@
 using LinearAlgebra
-using JuMP, Ipopt, COSMO
+using JuMP, COSMO
 using Plots
 using BSON: @load
 
@@ -15,24 +15,24 @@ W = I
 
 # solve optimization
 numParams = 2*numPins^2
-model = Model(optimizer_with_attributes(Ipopt.Optimizer, "print_level" => 0))
-set_silent(model)
+model = Model(COSMO.Optimizer)
 @variable(model, x[1:numParams])
-@objective(model, Min,(A*x-y)'*(A*x-y) + .05*x'*W*x)
+@variable(model, K[1:numPins, 1:numPins], PSD)
+@variable(model, C[1:numPins, 1:numPins])
+@objective(model, Min,(A*[vec(-K);vec(C)]-y)'*(A*[vec(-K);vec(C)]-y) + .05*[vec(-K);vec(C)]'*W*[vec(-K);vec(C)])
 JuMP.optimize!(model)
-KCmatrix = reshape(JuMP.value.(x), numPins, 2*numPins)
 
 # show K
-K = KCmatrix[:, 1:numPins]
+K = -JuMP.value.(K)
 lim = maximum(abs.(K))
 heatmap(reverse(K, dims=1), title="K", clim=(-lim,lim), c=:pu_or)
 
 # show C
-C = KCmatrix[:, numPins+1:end]
+C = JuMP.value.(C)
 lim = maximum(abs.(C))
 heatmap(reverse(C, dims=1), title="C", clim=(-lim,lim), c=:pu_or)
 
 # compute goodness of fit
-SSR = (A*JuMP.value.(param)-y)'*(A*JuMP.value.(param)-y)
+SSR = (A*[vec(K);vec(C)]-y)'*(A*[vec(K);vec(C)]-y)
 SST = norm(y .- sum(y)/length(y))^2
 Rsq = 1.0 - SSR/SST
