@@ -1,34 +1,34 @@
-include("../src/regression.jl")
+using LinearAlgebra
+using JuMP, Ipopt
+using Plots
+using BSON: @load
 
-links, timesteps = size(X_c)
-links,N = size(U_c)
+# load data
+@load "vineQVF.bson" Q V F
 
-A = [X_c' Xd_c']
-A = kron(A,Matrix(I,links,links))
-y = vec(U_c)
+# setup for optimization
+numPins, numTimesteps = size(Q)
+A = [Q' V']
+A = kron(A,Matrix(I,numPins,numPins))
+y = vec(F)
+W = I
 
-params_atan, RsqValues_atan = fit_w_all_angles(atan.(a*X_c), Xd_c, U_c)
-roundR2 = round(mean(RsqValues_atan),digits=2)
-Kmatrix = params_atan[:,1:links]
-Cmatrix = params_atan[:,links+1:end]
+# solve optimization
+numParams = 2*numPins^2
+model = Model(optimizer_with_attributes(Ipopt.Optimizer, "print_level" => 0))
+set_silent(model)
+@variable(model, param[1:numParams])
+@objective(model, Min,(A*param-y)'*(A*param-y) + .05*param'*W*param)
+JuMP.optimize!(model)
 
-# save results
-saveHeatMap(reverse(Kmatrix,dims=1)',"","","K, $links Links, θc = $θ_cutoff, R^2 = $roundR2",string("examples/MatrixRegressionResults/KMatrix$links","links$θ_cutoff.png"))
-saveHeatMap(reverse(Cmatrix,dims=1)',"","","C, $links Links, θc = $θ_cutoff, R^2 = $roundR2",string("examples/MatrixRegressionResults/CMatrix$links","links$θ_cutoff.png"))
+# show results
+KCmatrix = reshape(JuMP.value.(param), numPins, 2*numPins)
+K = KCmatrix[:, 1:numPins]
+C = KCmatrix[:, numPins+1:end]
+heatmap(K)
+heatmap(C)
 
-# adjust diagonal method 1
-Kmatrix = params_atan[:,1:links]
-KRowMax = maximum(abs.(Kmatrix), dims=2)
-scaling = maximum(KRowMax)/links
-for i = links:-1:1
-    Kmatrix[i,i] = minimum([-KRowMax[i]; Kmatrix[i,i]; [Kmatrix[j,j]-scaling for j = i+1:links]])
-end
-saveHeatMap(reverse(Kmatrix,dims=1)',"","","K, $links Links, θc = $θ_cutoff, R^2 = $roundR2",string("examples/MatrixRegressionResults/KMatrixADJ$links","links$θ_cutoff.png"))
-
-# # adjust diagonal method 2
-# Kmatrix = params_atan[:,1:links] - .06I
-# for i = 12:-1:1
-#     Kmatrix[i,i] = Kmatrix[i+1,i+1] - .01
-# end
-# Makie.plot(reverse(Kmatrix,dims=1)')
-saveHeatMap(reverse(Kmatrix,dims=1)',"","","K, $links Links, θc = $θ_cutoff, R^2 = $roundR2",string("examples/MatrixRegressionResults/KMatrixADJ$links","links$θ_cutoff.png"))
+# compute goodness of fit
+SSR = (A*JuMP.value.(param)-y)'*(A*JuMP.value.(param)-y)
+SST = norm(y .- mean(y))^2
+Rsq = 1.0 - SSR/SST
