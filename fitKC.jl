@@ -10,16 +10,33 @@ numPins, numTimesteps = size(Q)
 A = [Q' V']
 A = kron(A,Matrix(I,numPins,numPins))
 
-y = vec(F)
+y = vec(F);
 
 # set weights matrix
-v = .1*[.1;.1;[i for i = range(.3,1,length = numPins-2)]]
+v = .1*[.01;.01;[i for i = range(.3,1,length = numPins-2)]]
 WK = Toeplitz(v,v)
+
+v = .1*[.01;.01;[i for i = range(.3,1,length = numPins-2)]]
 WC = Toeplitz(v,v)
-W = Diagonal([vec(WK);vec(WC)])
+
+W = Diagonal(vec([WK WC]))
 
 # solve optimization
+# option 1: regularized least squares
 x = (A'*A + W)\(A'*y)
+
+# options 2: constrained optimization
+model = Model(optimizer_with_attributes(Ipopt.Optimizer, "print_level" => 0))
+set_silent(model)
+
+@variable(model, x[1:2*numPins^2])
+@constraint(model, diag, x[[i for i = 1:numPins+1:numPins^2]] .<= -.1)
+@objective(model, Min,(A*x-y)'*(A*x-y) + x'*W*x)
+
+JuMP.optimize!(model)
+x = JuMP.value.(x)
+
+# form KC matrix from fitted parameters
 KCmatrix = reshape(x, numPins, 2*numPins)
 
 # show K
