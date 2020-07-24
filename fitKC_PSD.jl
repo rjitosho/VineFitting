@@ -1,5 +1,6 @@
 using LinearAlgebra, ToeplitzMatrices
-using JuMP, COSMO
+# using JuMP, COSMO
+using Convex
 using Plots
 using BSON: @load
 
