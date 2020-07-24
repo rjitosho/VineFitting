@@ -1,5 +1,4 @@
 using LinearAlgebra
-using JuMP, Ipopt
 using Plots
 using BSON: @load
 
@@ -24,31 +23,23 @@ A = A[:, KCTridiagIdx]
 W = .01I
 
 # solve optimization
-numParams = length(KCTridiagIdx)
-model = JuMP.Model(optimizer_with_attributes(Ipopt.Optimizer, "print_level" => 0))
-set_silent(model)
-@variable(model, x[1:numParams])
-@objective(model, Min,(A*x-y)'*(A*x-y) + x'*W*x)
-
-# extract results
-JuMP.optimize!(model)
-params = JuMP.value.(x)
+x = (A'*A + W)\(A'*y)
 
 # show K
-Kparams = params[1:Int(numParams/2)]
+Kparams = x[1:Int(length(x)/2)]
 K = Tridiagonal(Kparams[1:numPins-1], Kparams[numPins:2*numPins-1], Kparams[2*numPins:end])
 lim = maximum(abs.(K))
 heatmap(reverse(Matrix(K), dims=1), title="K", clim=(-lim,lim), c=:pu_or)
 png("K")
 
 # show C
-Cparams = params[1+Int(numParams/2):end]
+Cparams = x[1+Int(length(x)/2):end]
 C = Tridiagonal(Cparams[1:numPins-1], Cparams[numPins:2*numPins-1], Cparams[2*numPins:end])
 lim = maximum(abs.(C))
 heatmap(reverse(Matrix(C), dims=1), title="C", clim=(-lim,lim), c=:pu_or)
 png("C")
 
 # compute goodness of fit
-SSR = (A*params-y)'*(A*params-y)
+SSR = (A*x-y)'*(A*x-y)
 SST = norm(y .- sum(y)/length(y))^2
 Rsq = 1.0 - SSR/SST

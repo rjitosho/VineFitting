@@ -1,5 +1,4 @@
-using LinearAlgebra
-using JuMP, Ipopt
+using LinearAlgebra, ToeplitzMatrices
 using Plots
 using BSON: @load
 
@@ -19,12 +18,8 @@ WC = Toeplitz(v,v)
 W = Diagonal([vec(WK);vec(WC)])
 
 # solve optimization
-model = JuMP.Model(optimizer_with_attributes(Ipopt.Optimizer, "print_level" => 0))
-set_silent(model)
-@variable(model, x[1:2*numPins^2])
-@objective(model, Min,(A*x-y)'*(A*x-y) + x'*W*x)
-JuMP.optimize!(model)
-KCmatrix = reshape(JuMP.value.(x), numPins, 2*numPins)
+x = (A'*A + W)\(A'*y)
+KCmatrix = reshape(x, numPins, 2*numPins)
 
 # show K
 K = KCmatrix[:, 1:numPins]
@@ -39,6 +34,6 @@ heatmap(reverse(C, dims=1), title="C", clim=(-lim,lim), c=:pu_or)
 png("C")
 
 # compute goodness of fit
-SSR = (A*JuMP.value.(x)-y)'*(A*JuMP.value.(x)-y)
+SSR = (A*x-y)'*(A*x-y)
 SST = norm(y .- sum(y)/length(y))^2
 Rsq = 1.0 - SSR/SST
