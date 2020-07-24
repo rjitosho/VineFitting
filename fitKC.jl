@@ -4,11 +4,12 @@ using BSON: @load
 
 # load data
 @load "vineQVF.bson" Q V F
+numPins, numTimesteps = size(Q)
 
 # setup for optimization
-numPins, numTimesteps = size(Q)
 A = [Q' V']
 A = kron(A,Matrix(I,numPins,numPins))
+
 y = vec(F)
 
 # set weights matrix
